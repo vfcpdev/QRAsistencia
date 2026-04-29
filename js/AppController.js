@@ -324,11 +324,33 @@ class AppController {
     }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    const video = document.getElementById("qr-video");
-    const canvas = document.getElementById("qr-canvas");
-    const model = new AttendanceModel();
-    const qr = new QRService();
-    const exportSrv = new ExportService();
-    window.app = new AppController(model, new ScannerService(video, canvas, (data) => window.app.handleScan(data)), qr, exportSrv);
+// Final bootstrap (Non-module version)
+window.addEventListener('load', () => {
+    try {
+        const video = document.getElementById("qr-video");
+        const canvas = document.getElementById("qr-canvas");
+        const excelInput = document.getElementById('excel-input');
+        
+        if (!video || !canvas) {
+            console.error("Critical UI elements missing");
+            return;
+        }
+
+        const model = new AttendanceModel();
+        const qr = new QRService();
+        const exportSrv = new ExportService();
+        
+        // Create controller first
+        const app = new AppController(model, null, qr, exportSrv);
+        
+        // Then attach scanner with a safe callback
+        app.scanner = new ScannerService(video, canvas, (data) => app.handleScan(data));
+        
+        // Expose to window for debugging and manual triggers
+        window.app = app;
+        
+        console.log("QRAttendance System initialized successfully.");
+    } catch (e) {
+        console.error("Initialization Error:", e);
+    }
 });
