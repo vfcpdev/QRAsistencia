@@ -41,6 +41,12 @@ var AppController = class {
     handleNavigation(navItem) {
         this.initAudio(); // Initialize audio on first navigation/click
         const tabId = navItem.getAttribute('data-tab');
+        
+        // Auto-stop camera if navigating away from scanner
+        if (tabId !== 'scanner-page' && this.scanner && this.scanner.isScanning) {
+            this.toggleCamera(); // This will stop it and update UI state
+        }
+
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         navItem.classList.add('active');
