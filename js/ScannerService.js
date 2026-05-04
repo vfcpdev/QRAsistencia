@@ -1,8 +1,4 @@
-/**
- * Handles QR scanning using native BarcodeDetector or jsQR fallback.
- * Optimized for high-performance reading and maximum compatibility.
- */
-class ScannerService {
+var ScannerService = class {
     constructor(video, canvas, onScan) {
         this.video = video;
         this.canvas = canvas;
@@ -14,50 +10,88 @@ class ScannerService {
         this.lastScanTime = 0;
         this.scanLock = false;
 
-        // Hidden canvas for fallback processing
         this.offscreenCanvas = document.createElement('canvas');
         this.offscreenCtx = this.offscreenCanvas.getContext('2d', { willReadFrequently: true, alpha: false });
 
         if ('BarcodeDetector' in window) {
             try {
                 this.detector = new BarcodeDetector({ formats: ['qr_code'] });
-            } catch (e) {
-                console.warn("BarcodeDetector supported but failed to initialize:", e);
-            }
+            } catch (e) {}
         }
     }
 
     async start() {
         if (this.isScanning) return;
-        
-        try {
-            const constraints = {
-                video: {
-                    facingMode: "environment",
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                }
-            };
 
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // 1. Check for secure context
+        if (!window.isSecureContext) {
+            const err = new Error("El acceso a la cámara requiere una conexión segura (HTTPS o localhost).");
+            err.name = "SecurityError";
+            throw err;
+        }
+
+        // 2. Check for mediaDevices support
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            const err = new Error("Tu navegador no soporta el acceso a la cámara.");
+            err.name = "NotSupportedError";
+            throw err;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { 
+                    facingMode: "environment", 
+                    width: { ideal: 1280 }, 
+                    height: { ideal: 720 } 
+                }
+            });
             this.video.srcObject = stream;
             this.video.setAttribute("playsinline", true);
             
-            // Wait for video to be ready with dual check
-            await new Promise((resolve) => {
-                if (this.video.readyState >= 2) resolve();
-                this.video.onloadedmetadata = () => resolve();
-                setTimeout(resolve, 3000); // Fail-safe
+            // Wait for video metadata to be loaded
+            return new Promise((resolve, reject) => {
+                this.video.onloadedmetadata = async () => {
+                    try {
+                        await this.video.play();
+                        this.isScanning = true;
+                        this._tick();
+                        resolve(true);
+                    } catch (e) {
+                        reject(e);
+                    }
+                };
+                this.video.onerror = () => reject(new Error("Error al cargar el video"));
             });
-
-            await this.video.play();
-
-            this.isScanning = true;
-            this._tick();
-            return true;
         } catch (err) {
-            console.error("Scanner Start Error:", err);
-            throw err;
+            console.error("Camera Error Details:", err);
+            
+            let userMessage = "Error desconocido al activar la cámara.";
+            
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                userMessage = "Permiso denegado. Por favor, permite el acceso a la cámara en la configuración de tu navegador.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                userMessage = "No se encontró ninguna cámara en este dispositivo.";
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                userMessage = "La cámara está siendo usada por otra aplicación.";
+            } else if (err.name === 'OverconstrainedError') {
+                userMessage = "La cámara no cumple con los requisitos de resolución.";
+            } else if (err.name === 'SecurityError') {
+                userMessage = "Contexto no seguro. Se requiere HTTPS.";
+            }
+
+            const customErr = new Error(userMessage);
+            customErr.name = err.name;
+            throw customErr;
+        }
+    }
+
+    async checkPermissions() {
+        try {
+            if (!navigator.permissions || !navigator.permissions.query) return 'unknown';
+            const result = await navigator.permissions.query({ name: 'camera' });
+            return result.state; // 'granted', 'denied', or 'prompt'
+        } catch (e) {
+            return 'unknown';
         }
     }
 
@@ -148,3 +182,5 @@ class ScannerService {
     }
 
 
+window.ScannerService = ScannerService;
+window.ScannerService = ScannerService;

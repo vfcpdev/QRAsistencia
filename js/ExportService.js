@@ -100,3 +100,4 @@ class ExportService {
         XLSX.writeFile(wb, "Reporte_General_Asistencia.xlsx");
     }
 }
+window.ExportService = ExportService;

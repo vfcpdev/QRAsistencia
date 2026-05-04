@@ -73,3 +73,4 @@ class AttendanceModel {
         };
     }
 }
+window.AttendanceModel = AttendanceModel;

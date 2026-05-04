@@ -98,3 +98,4 @@ class QRService {
         this.activeUrls.clear();
     }
 }
+window.QRService = QRService;

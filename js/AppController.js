@@ -1,4 +1,4 @@
-class AppController {
+var AppController = class {
     constructor(model, scannerService, qrService, exportService) {
         this.model = model;
         this.scanner = scannerService;
@@ -72,20 +72,29 @@ class AppController {
         this.generateStudentQRCards();
     }
 
-    toggleCamera() {
+    async toggleCamera() {
         this.initAudio();
         const btn = document.getElementById('btn-activate-camera');
         const status = document.getElementById('modal-status');
+        
         if (this.scanner.isScanning) {
             this.scanner.stop();
             if (btn) btn.innerText = '🚀 Iniciar Escáner';
             if (status) status.innerText = 'Estado: Inactivo';
+            this.showToast('Escáner detenido', 'info');
         } else {
-            this.scanner.start().then(() => {
+            if (status) status.innerText = '⌛ Solicitando permisos...';
+            try {
+                await this.scanner.start();
                 if (btn) btn.innerText = '🛑 Detener Cámara';
                 if (status) status.innerText = '🟢 Cámara Activa';
                 this.showToast('Escáner activado');
-            }).catch(e => this.showToast('Error: ' + e.message, 'error'));
+            } catch (e) {
+                console.error("Camera Activation Error:", e);
+                if (status) status.innerHTML = `<span style="color:var(--danger)">❌ ${e.message}</span>`;
+                this.showToast(e.message, 'error');
+                if (btn) btn.innerText = '🚀 Reintentar Escáner';
+            }
         }
     }
 
@@ -329,28 +338,28 @@ window.addEventListener('load', () => {
     try {
         const video = document.getElementById("qr-video");
         const canvas = document.getElementById("qr-canvas");
-        const excelInput = document.getElementById('excel-input');
         
-        if (!video || !canvas) {
-            console.error("Critical UI elements missing");
-            return;
-        }
+        if (!video || !canvas) return;
 
         const model = new AttendanceModel();
         const qr = new QRService();
         const exportSrv = new ExportService();
         
-        // Create controller first
+        // Atomic setup
         const app = new AppController(model, null, qr, exportSrv);
+        const scanner = new ScannerService(video, canvas, (data) => app.handleScan(data));
+        app.scanner = scanner;
+
+        // Security Audit Check
+        if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            app.showToast('⚠️ Advertencia: La cámara podría no funcionar sin HTTPS', 'error');
+            const status = document.getElementById('modal-status');
+            if (status) status.innerHTML = '<span style="color:var(--danger)">⚠️ Se requiere HTTPS para la cámara</span>';
+        }
         
-        // Then attach scanner with a safe callback
-        app.scanner = new ScannerService(video, canvas, (data) => app.handleScan(data));
-        
-        // Expose to window for debugging and manual triggers
         window.app = app;
-        
-        console.log("QRAttendance System initialized successfully.");
+        console.log("QRAttendance Ready.");
     } catch (e) {
-        console.error("Initialization Error:", e);
+        console.error("System Failure:", e);
     }
 });
